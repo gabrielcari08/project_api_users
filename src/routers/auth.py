@@ -15,6 +15,10 @@ from src.security import verify_password, create_access_token
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
+@router.get("/protected-route")
+async def protected_route(token: str = Depends(oauth2_scheme)):
+    return {"message": "Tienes acceso a esta ruta", "token": token}
+
 @router.post("/login")
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     user = db.query(User).filter(User.username == form_data.username).first()

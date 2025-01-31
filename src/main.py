@@ -27,6 +27,3 @@ app.include_router(auth.router)
 def home():
     return {"message": "Bienvenido a la API de Usuarios"}
 
-@app.get("/protected-route")
-async def protected_route(token: str = Depends(oauth2_scheme)):
-    return {"message": "Tienes acceso a esta ruta", "token": token}
