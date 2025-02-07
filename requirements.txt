@@ -6,3 +6,8 @@ pydantic[email]
 python-jose[cryptography]
 passlib[bcrypt]
 bcrypt
+alembic
+python-dotenv
+requests
+httpx
+email-validator

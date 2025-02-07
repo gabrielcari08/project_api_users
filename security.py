@@ -28,20 +28,30 @@ def get_db():
 
 # Función para obtener el usuario actual a partir del token
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Obtiene el usuario actual a partir del token, validando que no esté revocado."""
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         if username is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
-
-        # Buscar al usuario en la base de datos
-        user = db.query(User).filter(User.username == username).first()
-        if user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
-        return user
-
+            raise credentials_exception
     except JWTError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+        raise credentials_exception
+
+    # Verificar si el token está revocado
+    if is_token_revoked(token, db):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
+    user = db.query(User).filter(User.username == username).first()
+    if user is None:
+        raise credentials_exception
+
+    return user
 
 # Función para verificar la contraseña
 def verify_password(plain_password, hashed_password):
@@ -61,3 +71,12 @@ def create_access_token(data: dict, expires_delta: timedelta = None):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+
+from sqlalchemy.orm import Session
+from db.models import RevokedToken
+
+def is_token_revoked(token: str, db: Session) -> bool:
+    """Verifica si un token ha sido revocado."""
+    return db.query(RevokedToken).filter(RevokedToken.token == token).first() is not None
+

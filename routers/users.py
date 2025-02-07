@@ -3,7 +3,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from db.database import SessionLocal
-from db.models import User
+from db.models import User, RevokedToken
 from utils import is_valid_email
 from security import (
     oauth2_scheme, 
@@ -23,7 +23,7 @@ class UserCreate(BaseModel):
     password: str  
        
 class UserLogin(BaseModel):
-    username: str
+    credential: str  # Puede ser username o email
     password: str
 
 # Dependencia para obtener la sesión de la base de datos
@@ -68,17 +68,38 @@ async def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
     return {"message": "User registered successfully", "username": db_user.username, "email": db_user.email}
 
-@router.post("/token")
-async def login_user(user: UserLogin, db: Session = Depends(get_db)):
-    db_user = db.query(User).filter(User.username == user.username).first()
-    if not db_user or not verify_password(user.password, db_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Incorrect username or password")
+@router.post("/login")
+async def login(user: UserLogin, db: Session = Depends(get_db)):
+    # Buscar el usuario en la base de datos por username o email
+    db_user = db.query(User).filter(
+        (User.username == user.credential) | (User.email == user.credential)
+    ).first()
 
+    # Si el usuario no existe o la contraseña es incorrecta, devolver error
+    if not db_user or not verify_password(user.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+
+    # Generar token de acceso
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": db_user.username}, expires_delta=access_token_expires
     )
+
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/logout")
+async def logout(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    """Revoca el token de autenticación del usuario"""
+    # Verificar si el token ya está revocado
+    if db.query(RevokedToken).filter(RevokedToken.token == token).first():
+        raise HTTPException(status_code=400, detail="Token already revoked")
+
+    # Guardar el token en la base de datos para marcarlo como revocado
+    revoked_token = RevokedToken(token=token)
+    db.add(revoked_token)
+    db.commit()
+
+    return {"message": "Logout successful. Token revoked."}
 
 @router.get("/me")
 async def users_me(current_user: User = Depends(get_current_user)):

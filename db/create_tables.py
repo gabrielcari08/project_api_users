@@ -4,8 +4,8 @@
 #-Importa los modelos para que SQLAlchemy los reconozca.
 #-Llama a Base.metadata.create_all(bind=engine) para crear las tablas en la base de datos.
 
-from database import engine, Base
-import models
+from db.database import engine, Base
+import db.models
 
 print("Creando las tablas en la base de datos...")
 
