@@ -19,7 +19,7 @@ router = APIRouter(prefix="/users", tags=["Users"])
 # Esquema del usuario
 class UserCreate(BaseModel):
     username: str
-    email: EmailStr  # Verifica automáticamente que el email tenga un formato válido
+    email: str  
     password: str  
        
 class UserLogin(BaseModel):
